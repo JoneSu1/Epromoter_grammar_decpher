@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 from pathlib import Path
 
 
@@ -39,4 +40,37 @@ def check_registry(package_root: Path | None = None) -> list[str]:
                 path = package_root / target[field]
                 if not path.exists():
                     errors.append(f"{figure}: missing {field}: {path}")
+        if entry.get("manual_assets_required"):
+            composite = package_root / "frozen_data" / "manuscript_visual_assets" / "main_figures_png" / f"{figure}.png"
+            if not composite.is_file():
+                errors.append(f"{figure}: missing final manuscript composite: {composite}")
+    return errors
+
+
+def verify_visual_assets(package_root: Path | None = None) -> list[str]:
+    """Check final visual assets against the frozen size/SHA-256 inventory."""
+    package_root = package_root or resolve_package_root()
+    visual_root = package_root / "frozen_data" / "manuscript_visual_assets"
+    manifest = visual_root / "MANIFEST.sha256"
+    if not manifest.is_file():
+        return [f"missing visual asset manifest: {manifest}"]
+
+    errors: list[str] = []
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        try:
+            relative, byte_count, expected_hash = line.split("\t")
+        except ValueError:
+            errors.append(f"malformed visual manifest line: {line}")
+            continue
+        path = visual_root / relative
+        if not path.is_file():
+            errors.append(f"missing visual asset: {path}")
+            continue
+        if path.stat().st_size != int(byte_count):
+            errors.append(f"size mismatch: {relative}")
+            continue
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+            errors.append(f"SHA-256 mismatch: {relative}")
     return errors

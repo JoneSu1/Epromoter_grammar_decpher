@@ -15,6 +15,7 @@ reproducibility_package/
   04_deepisa/
   05_evolution/
   frozen_data/
+    manuscript_visual_assets/
   quickstart/
   MANIFEST.md
 ```
@@ -28,3 +29,12 @@ downloaded archive before claiming reproducibility.
 
 The local source archive is suitable for development testing but is not a
 substitute for a deposited immutable archive.
+
+## Build and verification
+
+Create a ZIP64 archive with `scripts/build_release_archive.py`; do not add the
+multi-gigabyte payload to Git. On a fresh download, extract the archive, set
+`DROSOPHILA_REPRO_PACKAGE_ROOT` to its `reproducibility_package/` directory,
+then run `drosophila-repro doctor` and `drosophila-repro assets-verify` before
+running any figure. The latter verifies final Figure 1–6/S1–S5 exports and all
+editable source files against the visual SHA-256 inventory.

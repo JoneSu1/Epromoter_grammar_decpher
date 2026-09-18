@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .registry import REPOSITORY_ROOT, check_registry, load_registry, resolve_package_root
+from .registry import REPOSITORY_ROOT, check_registry, load_registry, resolve_package_root, verify_visual_assets
 
 
 def _selected(name: str) -> list[tuple[str, dict]]:
@@ -24,6 +24,15 @@ def doctor() -> int:
     print(f"registry: {REPOSITORY_ROOT / 'configs' / 'figure_registry.json'}")
     errors = check_registry(root)
     print("doctor: PASS" if not errors else f"doctor: FAIL ({len(errors)} missing paths)")
+    for error in errors:
+        print(f"  {error}")
+    return int(bool(errors))
+
+
+def assets_verify() -> int:
+    root = resolve_package_root()
+    errors = check_registry(root) + verify_visual_assets(root)
+    print("assets-verify: PASS" if not errors else f"assets-verify: FAIL ({len(errors)} issue(s))")
     for error in errors:
         print(f"  {error}")
     return int(bool(errors))
@@ -71,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="drosophila-repro")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor")
+    sub.add_parser("assets-verify")
     sub.add_parser("list")
     sub.add_parser("registry-check")
     render = sub.add_parser("reproduce")
@@ -83,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return doctor()
+    if args.command == "assets-verify":
+        return assets_verify()
     if args.command == "list":
         print(json.dumps(load_registry()["figures"], indent=2, ensure_ascii=False))
         return 0

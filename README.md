@@ -26,6 +26,7 @@ drosophila-repro list
 pip install -e ".[figures]"
 drosophila-repro reproduce --figure figure5
 drosophila-repro reproduce --figure all --continue-on-error
+drosophila-repro assets-verify
 ```
 
 ### Notebook quickstart
@@ -48,6 +49,8 @@ drosophila-repro registry-check
 `doctor` discovers the release assets through `DROSOPHILA_REPRO_PACKAGE_ROOT`.
 In the source archive it defaults to `../../reproducibility_package`; after
 publication it defaults to the repository's `release_assets/` directory.
+`assets-verify` additionally checks every final visual export and editable
+source against the frozen SHA-256 inventory.
 
 ## Reproduction scope
 
