@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drosophila-promoter-repro"
+version = "0.1.0"
+description = "Reproduce and extend the Drosophila promoter paper from frozen release assets."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "License pending release review"}
+authors = [{name = "Drosophila promoter paper authors"}]
+dependencies = []
+
+[project.optional-dependencies]
+figures = ["numpy", "pandas", "matplotlib", "seaborn", "logomaker", "h5py"]
+notebook = ["jupyterlab>=4"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+drosophila-repro = "drosophila_repro.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
