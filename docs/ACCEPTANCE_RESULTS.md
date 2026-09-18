@@ -23,6 +23,7 @@ clone plus its deposited release assets.
 | 15 | Reader/reviewer | `drosophila-repro assets-verify` | PASS: all six final Figure 1–6 composites, S1–S5 exports, editable PPTX/PDF sources, byte counts, and SHA-256 hashes match the frozen visual inventory. |
 | 16 | Release maintainer | ZIP64 asset build, sidecar SHA-256, and central-directory audit | PASS: the public asset archive has 2,066 members, exceeds 4 GiB safely, contains all registered Figure 5 and visual-asset paths, and contains zero `Ep_ISA_NEW_src` members. |
 | 17 | Reproduction scientist | Install the built wheel into an isolated target, use an independently extracted ZIP asset root, then run `doctor`, `assets-verify`, and `reproduce --figure all --dry-run --continue-on-error` | PASS: the installed wheel reads its packaged registry (not the checkout), the extracted archive resolves, final visual hashes pass, and every Figure 1–6 command resolves. |
+| 18 | Release maintainer | Create an asset-free Git archive in an unrelated temporary directory; force imports from its own `src/`; run tests and build a wheel | PASS: 4 code-level tests pass, 2 asset-mount tests skip by design, and the wheel builds. This matches the GitHub Actions workflow rather than accidentally reading the development archive. |
 
 ## Remaining public-tag evidence
 
