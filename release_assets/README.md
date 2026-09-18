@@ -26,3 +26,6 @@ python scripts/build_release_archive.py \
 
 Publish the generated `.zip` and `.zip.sha256` together. The final DOI URL,
 checksum, size, and package version must be inserted here before tagging.
+The default builder excludes `Ep_ISA_NEW_src/` because its upstream deepISA
+license is currently unresolved; the frozen Figure 5 inputs and figure
+renderers remain included.

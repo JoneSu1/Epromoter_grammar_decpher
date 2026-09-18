@@ -38,3 +38,10 @@ multi-gigabyte payload to Git. On a fresh download, extract the archive, set
 then run `drosophila-repro doctor` and `drosophila-repro assets-verify` before
 running any figure. The latter verifies final Figure 1–6/S1–S5 exports and all
 editable source files against the visual SHA-256 inventory.
+
+The default archive intentionally omits
+`04_deepisa/scripts/Ep_ISA_NEW_src/`: upstream deepISA has no verified
+redistribution license. This does not change frozen-input Figure 5 rendering.
+`--include-unresolved-deepisa` exists solely for non-public internal audit
+archives and must never be used for the public DOI/GitHub payload without
+written permission.

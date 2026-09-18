@@ -20,9 +20,12 @@ clone plus its deposited release assets.
 | 12 | Reproduction scientist | Figure 6 main renderer plus localized branch-plate and motif-bar adapters | PASS: main evolution outputs regenerated; 60/60 HK/DEV branch-plate exports completed; motif-gain bars regenerated. |
 | 13 | Reader/reviewer + reproduction scientist | `drosophila-repro doctor`, `registry-check`, `pytest -q`, and `reproduce --figure all --dry-run --continue-on-error` after adding the release-data mount point | PASS: the empty mount point no longer shadows the audited development archive; all six figure groups resolve, and 3/3 registry tests pass. |
 | 14 | Method developer | `python -m pip wheel . --no-deps --wheel-dir dist` | PASS: a standards-compliant pure-Python wheel was built (`drosophila_promoter_repro-0.1.0-py3-none-any.whl`). |
+| 15 | Reader/reviewer | `drosophila-repro assets-verify` | PASS: all six final Figure 1–6 composites, S1–S5 exports, editable PPTX/PDF sources, byte counts, and SHA-256 hashes match the frozen visual inventory. |
+| 16 | Release maintainer | ZIP64 asset build, sidecar SHA-256, and central-directory audit | PASS: the public asset archive has 2,066 members, exceeds 4 GiB safely, contains all registered Figure 5 and visual-asset paths, and contains zero `Ep_ISA_NEW_src` members. |
+| 17 | Reproduction scientist | Install the built wheel into an isolated target, use an independently extracted ZIP asset root, then run `doctor`, `assets-verify`, and `reproduce --figure all --dry-run --continue-on-error` | PASS: the installed wheel reads its packaged registry (not the checkout), the extracted archive resolves, final visual hashes pass, and every Figure 1–6 command resolves. |
 
 ## Remaining public-tag evidence
 
-Execute the GitHub notebook from a clean environment; test a downloaded DOI
-archive; and compare all released exports plus manual PPTX panels to the final
-manuscript composites.
+Execute the GitHub notebook from a clean environment; deposit and test the
+public ZIP at its persistent DOI; and compare all rebuilt exports plus manual
+PPTX panels to the final manuscript composites.

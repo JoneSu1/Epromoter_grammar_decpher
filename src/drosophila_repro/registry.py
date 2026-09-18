@@ -12,9 +12,16 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
+def registry_path() -> Path:
+    """Use the checkout registry when available, otherwise the wheel payload."""
+    checkout_path = REPOSITORY_ROOT / "configs" / "figure_registry.json"
+    if checkout_path.is_file():
+        return checkout_path
+    return Path(__file__).parent / "configs" / "figure_registry.json"
+
+
 def load_registry() -> dict:
-    path = REPOSITORY_ROOT / "configs" / "figure_registry.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(registry_path().read_text(encoding="utf-8"))
 
 
 def resolve_package_root() -> Path:

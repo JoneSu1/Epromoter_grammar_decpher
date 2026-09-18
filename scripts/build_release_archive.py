@@ -14,9 +14,10 @@ from pathlib import Path
 
 EXCLUDED_DIRS = {"__pycache__", ".ipynb_checkpoints"}
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
+UNRESOLVED_DEEPISA_PREFIX = Path("04_deepisa/scripts/Ep_ISA_NEW_src")
 
 
-def archive_members(source: Path):
+def archive_members(source: Path, include_unresolved_deepisa: bool):
     for path in sorted(source.rglob("*")):
         if not path.is_file():
             continue
@@ -24,6 +25,8 @@ def archive_members(source: Path):
         if any(part in EXCLUDED_DIRS for part in relative.parts):
             continue
         if path.suffix.lower() in EXCLUDED_SUFFIXES:
+            continue
+        if not include_unresolved_deepisa and relative.is_relative_to(UNRESOLVED_DEEPISA_PREFIX):
             continue
         yield path, relative
 
@@ -41,6 +44,11 @@ def main() -> int:
     parser.add_argument("--source", type=Path, required=True, help="Audited reproducibility_package directory")
     parser.add_argument("--output", type=Path, required=True, help="Destination .zip path")
     parser.add_argument("--compression", choices=["stored", "deflated"], default="stored")
+    parser.add_argument(
+        "--include-unresolved-deepisa",
+        action="store_true",
+        help="Internal audit only: include Ep_ISA_NEW_src despite unresolved upstream redistribution rights.",
+    )
     args = parser.parse_args()
 
     source = args.source.resolve()
@@ -52,7 +60,7 @@ def main() -> int:
 
     count = 0
     with zipfile.ZipFile(output, "w", compression=compression, allowZip64=True) as archive:
-        for path, relative in archive_members(source):
+        for path, relative in archive_members(source, args.include_unresolved_deepisa):
             archive.write(path, Path(source.name) / relative)
             count += 1
     checksum = sha256(output)
@@ -62,6 +70,7 @@ def main() -> int:
     print(f"members: {count}")
     print(f"bytes: {output.stat().st_size}")
     print(f"sha256: {checksum}")
+    print(f"unresolved-deepisa-included: {args.include_unresolved_deepisa}")
     return 0
 
 

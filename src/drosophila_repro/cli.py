@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .registry import REPOSITORY_ROOT, check_registry, load_registry, resolve_package_root, verify_visual_assets
+from .registry import check_registry, load_registry, registry_path, resolve_package_root, verify_visual_assets
 
 
 def _selected(name: str) -> list[tuple[str, dict]]:
@@ -21,7 +21,7 @@ def _selected(name: str) -> list[tuple[str, dict]]:
 def doctor() -> int:
     root = resolve_package_root()
     print(f"release assets: {root}")
-    print(f"registry: {REPOSITORY_ROOT / 'configs' / 'figure_registry.json'}")
+    print(f"registry: {registry_path()}")
     errors = check_registry(root)
     print("doctor: PASS" if not errors else f"doctor: FAIL ({len(errors)} missing paths)")
     for error in errors:

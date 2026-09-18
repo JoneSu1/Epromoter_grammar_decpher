@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "scope": "frozen-input computational reproduction",
+  "figures": {
+    "figure1": {
+      "question": "Can HK and DEV enhancer activities be predicted from sequence?",
+      "manual_assets_required": true,
+      "targets": [
+        {"script": "01_model_build/deepstarr/scripts/run_all.py", "required_root": "01_model_build/deepstarr"}
+      ]
+    },
+    "figure2": {
+      "question": "Can endogenous promoter CAGE activity be predicted from sequence?",
+      "manual_assets_required": true,
+      "targets": [
+        {"script": "01_model_build/deepcage/scripts/run_all.py", "required_root": "01_model_build/deepcage"}
+      ]
+    },
+    "figure3": {
+      "question": "Do the three model readouts share a motif atlas?",
+      "manual_assets_required": true,
+      "targets": [
+        {"script": "quickstart/adapters/figure3_atlas.py", "required_root": "02_sharing_motif/data"},
+        {"script": "quickstart/adapters/figure3_promoter_logos.py", "required_root": "frozen_data/sharing_motif_logos"}
+      ]
+    },
+    "figure4": {
+      "question": "Are shared motifs deployed differently by task?",
+      "manual_assets_required": false,
+      "targets": [
+        {"script": "03_motif_analysis/scripts/fig3b_tss_distance.py", "required_root": "03_motif_analysis"},
+        {"script": "03_motif_analysis/scripts/fig3c_density_complexity.py", "required_root": "03_motif_analysis"},
+        {"script": "03_motif_analysis/scripts/fig3d_contribution.py", "required_root": "03_motif_analysis"}
+      ]
+    },
+    "figure5": {
+      "question": "Are motif-pair interactions non-additive and task dependent?",
+      "manual_assets_required": true,
+      "targets": [
+        {"script": "04_deepisa/scripts/fig2_screening_null_distribution.py", "required_root": "frozen_data/deepisa_raw"},
+        {"script": "04_deepisa/scripts/fig3de_discovery_summary.py", "required_root": "04_deepisa"},
+        {"script": "04_deepisa/scripts/fig3g_top_pairs.py", "required_root": "04_deepisa"},
+        {"script": "04_deepisa/scripts/fig3h_complete_matrix.py", "required_root": "04_deepisa"},
+        {"script": "quickstart/adapters/figure5_distance.py", "required_root": "04_deepisa/data/fig4_pos_neg"}
+      ]
+    },
+    "figure6": {
+      "question": "Can model-guided sequence evolution gain target activity under sequence constraints?",
+      "manual_assets_required": true,
+      "targets": [
+        {"script": "05_evolution/scripts/plot_fig5_polish2.py", "required_root": "05_evolution"},
+        {"script": "quickstart/adapters/figure6_branch_pairs.py", "required_root": "frozen_data/evolution_fig5d"},
+        {"script": "quickstart/adapters/figure6_motif_bars.py", "required_root": "05_evolution"}
+      ]
+    }
+  }
+}
