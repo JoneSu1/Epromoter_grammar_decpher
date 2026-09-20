@@ -31,3 +31,15 @@ def test_track_contract_separates_s3_and_deepisa():
     assert len(cage) == 1
     assert cage.iloc[0].sequence == "C" * 249
     assert cage.iloc[0].region == cage.iloc[0].canonical_id
+
+
+def test_checkpoint_rejects_changed_output_and_deepisa_defaults_to_auto(tmp_path):
+    config = {"output_root": str(tmp_path)}
+    output = tmp_path / "result.tsv"
+    output.write_text("first\n", encoding="utf-8")
+    pipeline.mark_state(config, "unit", "fingerprint", [output])
+    assert pipeline.state_is_current(config, "unit", "fingerprint", [output])
+    output.write_text("changed\n", encoding="utf-8")
+    assert not pipeline.state_is_current(config, "unit", "fingerprint", [output])
+    args = pipeline.parser().parse_args(["--config", "config.json", "deepisa", "--track", "deepisa_hk"])
+    assert args.start_from == "auto"

@@ -72,10 +72,12 @@ outputs exist and its fingerprint still matches.  Changing a source file,
 manifest, motif H5, model H5 or configuration invalidates the relevant
 checkpoint.  Use `--force` only after consciously reviewing the change.
 
-For a DeepISA interruption, retain the result directory and call `deepisa`
-with `--start-from` at the earliest missing stage.  The available stages are
-`preflight_audit`, `single_isa`, `combi_isa`, `null_interaction`, and
-`aggregate_isa`.
+DeepISA writes one state file for each of `preflight_audit`, `single_isa`,
+`combi_isa`, `null_interaction`, and `aggregate_isa`. The default
+`--start-from auto` resumes at the first stage without a valid state; manual
+stage selection remains available for deliberate reruns. An incomplete
+Fi-NeMo directory is retained under `state/incomplete/finemo/` and retried in
+a fresh directory.
 
 ## Local dry-run
 

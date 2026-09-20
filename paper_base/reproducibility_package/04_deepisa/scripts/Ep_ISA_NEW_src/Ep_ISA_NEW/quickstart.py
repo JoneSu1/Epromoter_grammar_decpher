@@ -200,11 +200,16 @@ class EpQuickStart:
         self,
         isa_config,
         start_from="preflight_audit",
+        stop_after=None,
     ):
         if self.model is None:
             raise ValueError("Model not defined. Call define_model() first.")
 
         self._validate_start_from(start_from)
+        if stop_after is not None:
+            self._validate_start_from(stop_after)
+            if ISA_STAGES.index(stop_after) < ISA_STAGES.index(start_from):
+                raise ValueError("stop_after must not precede start_from")
         self._check_isa_dependencies(start_from)
 
         self.tracks = isa_config.get('tracks', [0])
@@ -223,6 +228,8 @@ class EpQuickStart:
             )
         else:
             logger.info(f"Skipping: preflight_audit (start_from='{start_from}')")
+        if stop_after == "preflight_audit":
+            return
 
         if start_idx <= ISA_STAGES.index("single_isa"):
             logger.info("Running stage: single_isa")
@@ -244,6 +251,8 @@ class EpQuickStart:
             )
         else:
             logger.info(f"Skipping: single_isa (start_from='{start_from}')")
+        if stop_after == "single_isa":
+            return
 
         if start_idx <= ISA_STAGES.index("combi_isa"):
             logger.info("Running stage: combi_isa")
@@ -261,6 +270,8 @@ class EpQuickStart:
             )
         else:
             logger.info(f"Skipping: combi_isa")
+        if stop_after == "combi_isa":
+            return
 
         if start_idx <= ISA_STAGES.index("null_interaction"):
             logger.info("Running stage: null_interaction")
@@ -281,6 +292,8 @@ class EpQuickStart:
             )
         else:
             logger.info(f"Skipping: null_interaction")
+        if stop_after == "null_interaction":
+            return
 
         if start_idx <= ISA_STAGES.index("aggregate_isa"):
             logger.info("Running stage: aggregate_isa")
@@ -323,6 +336,8 @@ class EpQuickStart:
                 )
         else:
             logger.info(f"Skipping: aggregate_isa")
+        if stop_after == "aggregate_isa":
+            return
 
         logger.info("ISA execution and aggregation complete.")
 

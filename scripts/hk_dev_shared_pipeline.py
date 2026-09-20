@@ -198,14 +198,30 @@ def state_is_current(config: dict, name: str, fingerprint: str, outputs: list[Pa
     if not state.exists() or not all(path.exists() and path.stat().st_size > 0 for path in outputs):
         return False
     payload = json.loads(state.read_text(encoding="utf-8"))
-    return payload.get("fingerprint") == fingerprint and payload.get("status") == "complete"
+    recorded_hashes = payload.get("output_sha256", {})
+    current_hashes = {str(path): sha256(path) for path in outputs}
+    return (
+        payload.get("fingerprint") == fingerprint
+        and payload.get("status") == "complete"
+        and recorded_hashes == current_hashes
+    )
 
 
 def mark_state(config: dict, name: str, fingerprint: str, outputs: list[Path], extra: dict | None = None) -> None:
-    payload = {"status": "complete", "completed_utc": utcnow(), "fingerprint": fingerprint, "outputs": [str(p) for p in outputs]}
+    payload = {"status": "complete", "completed_utc": utcnow(), "fingerprint": fingerprint, "outputs": [str(p) for p in outputs], "output_sha256": {str(path): sha256(path) for path in outputs}}
     if extra:
         payload.update(extra)
     atomic_json(state_path(config, name), payload)
+
+
+def completed_state_fingerprint(config: dict, name: str) -> str:
+    path = state_path(config, name)
+    if not path.exists():
+        raise RuntimeError(f"Missing required completed checkpoint: {path}")
+    value = json.loads(path.read_text(encoding="utf-8")).get("fingerprint")
+    if not value:
+        raise RuntimeError(f"Checkpoint lacks a fingerprint: {path}")
+    return value
 
 
 def command_inspect(config: dict) -> None:
@@ -315,6 +331,15 @@ def command_scan(config: dict, track: str, force: bool) -> None:
     if not force and state_is_current(config, f"scan_{track}", fingerprint, [hits]):
         print(f"scan {track}: checkpoint valid; hits.tsv retained")
         return
+    # An interrupted Fi-NeMo process does not have a valid state. Preserve its
+    # incomplete output rather than scanning into a directory with unknown
+    # contents; the retry starts from a fresh target directory.
+    if scan_dir.exists():
+        archive_root = output_path(config) / "state" / "incomplete" / "finemo"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive = archive_root / f"{track}_{utcnow().replace(':', '').replace('+00:00', 'Z')}"
+        scan_dir.replace(archive)
+        print(f"scan {track}: archived incomplete attempt to {archive}")
     scan_dir.mkdir(parents=True, exist_ok=True)
     command = ["finemo", "call-hits", "-r", str(npz_file), "-m", str(motif), "-o", str(scan_dir), "-l", str(config["finemo"]["lambda"]), "--max-steps", str(config["finemo"]["max_steps"])]
     print("Executing:", " ".join(command))
@@ -323,6 +348,28 @@ def command_scan(config: dict, track: str, force: bool) -> None:
         raise RuntimeError(f"Fi-NeMo finished without a non-empty {hits}")
     mark_state(config, f"scan_{track}", fingerprint, [hits], {"motif_database": str(motif), "motif_sha256": sha256(motif), "command": command})
     print(f"scan {track}: complete")
+
+
+def _deepisa_stage_outputs(runner) -> dict[str, list[Path]]:
+    files = {key: Path(value) for key, value in runner.files.items()}
+    tracks = runner.tracks
+    return {
+        "preflight_audit": [files["preflight_pair_audit"], files["preflight_pair_audit_by_region"], files["preflight_overlap_pairs"]],
+        "single_isa": [files["isa_single"], files["null_isa"], files["pred_orig"]],
+        "combi_isa": [files["isa_combi"]],
+        "null_interaction": [files["null_interaction"]],
+        "aggregate_isa": [files["isa_combi"], files["null_interaction"], files["imp_tf"], *[Path(files["coop_tf_pair"].as_posix().replace(".csv", f"_t{t}.csv")) for t in tracks], *[Path(files["coop_tf"].as_posix().replace(".csv", f"_t{t}.csv")) for t in tracks]],
+    }
+
+
+def _refresh_state_hashes(config: dict, name: str, outputs: list[Path]) -> None:
+    path = state_path(config, name)
+    if not path.exists() or not all(item.exists() and item.stat().st_size > 0 for item in outputs):
+        return
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["outputs"] = [str(item) for item in outputs]
+    payload["output_sha256"] = {str(item): sha256(item) for item in outputs}
+    atomic_json(path, payload)
 
 
 def command_deepisa(config: dict, track: str, isa_source: str | None, force: bool, start_from: str) -> None:
@@ -339,11 +386,7 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
     if not model_path.exists():
         raise FileNotFoundError(model_path)
     results = output_path(config) / "deepisa" / track
-    required = [results / "Data" / "motif_combi_isa.csv", results / "Data" / "null_interaction.csv"]
-    fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(scan_hits) + sha256(model_path)).encode()).hexdigest()
-    if not force and state_is_current(config, f"deepisa_{track}", fingerprint, required):
-        print(f"deepisa {track}: checkpoint valid; final tables retained")
-        return
+    base_fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(scan_hits) + sha256(model_path)).encode()).hexdigest()
     sys.path.insert(0, str(source))
     import tensorflow as tf
     from Ep_ISA_NEW.quickstart import EpQuickStart
@@ -352,10 +395,43 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
     runner = EpQuickStart(str(results), str(output_path(config) / "fasta" / f"{track}.fa"), frame)
     runner.define_model(model)
     runner.load_finemo(str(scan_hits), finemo_h5_path=str(source_path(config, "shared_24bp_motifs")))
-    runner.run_isa(config["deepisa"], start_from=start_from)
+    stage_outputs = _deepisa_stage_outputs(runner)
+    stages = list(stage_outputs)
+    if start_from == "auto":
+        requested = stages
+    else:
+        requested = stages[stages.index(start_from):]
+    for stage in requested:
+        dependency_tokens = {
+            "preflight_audit": [sha256(scan_hits)],
+            "single_isa": [sha256(Path(runner.files["motif_locs"])), sha256(Path(runner.files["non_motif_locs"]))],
+            "combi_isa": [sha256(Path(runner.files["isa_single"])), sha256(Path(runner.files["null_isa"])), sha256(Path(runner.files["pred_orig"]))],
+            # aggregate_isa intentionally rewrites combi/null tables in place.
+            # Use upstream checkpoint identities, not their pre-aggregation
+            # byte hashes, and validate the final output hashes separately.
+            "null_interaction": [completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"), sha256(Path(runner.files["pred_orig"]))],
+            "aggregate_isa": [completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"), completed_state_fingerprint(config, f"deepisa_{track}_null_interaction"), sha256(Path(runner.files["isa_single"])), sha256(Path(runner.files["null_isa"]))],
+        }[stage]
+        stage_fingerprint = hashlib.sha256((base_fingerprint + stage + "".join(dependency_tokens)).encode()).hexdigest()
+        state_name = f"deepisa_{track}_{stage}"
+        if not force and state_is_current(config, state_name, stage_fingerprint, stage_outputs[stage]):
+            print(f"deepisa {track} {stage}: checkpoint valid; skipped")
+            continue
+        print(f"deepisa {track}: running {stage}")
+        runner.run_isa(config["deepisa"], start_from=stage, stop_after=stage)
+        if not all(path.exists() and path.stat().st_size > 0 for path in stage_outputs[stage]):
+            raise RuntimeError(f"DeepISA stage {stage} did not produce its required outputs")
+        mark_state(config, state_name, stage_fingerprint, stage_outputs[stage], {"model": str(model_path), "model_sha256": sha256(model_path), "finemo_hits": str(scan_hits)})
+        # aggregate_isa normalizes these two tables in place, so refresh the
+        # upstream state hashes after that intentional mutation.
+        if stage == "aggregate_isa":
+            _refresh_state_hashes(config, f"deepisa_{track}_combi_isa", stage_outputs["combi_isa"])
+            _refresh_state_hashes(config, f"deepisa_{track}_null_interaction", stage_outputs["null_interaction"])
+    required = stage_outputs["aggregate_isa"]
     if not all(path.exists() and path.stat().st_size > 0 for path in required):
         raise RuntimeError("DeepISA did not produce its required final interaction tables")
-    mark_state(config, f"deepisa_{track}", fingerprint, required, {"model": str(model_path), "model_sha256": sha256(model_path), "finemo_hits": str(scan_hits), "start_from": start_from})
+    final_fingerprint = hashlib.sha256((base_fingerprint + "aggregate_isa" + "".join(sha256(item) for item in required)).encode()).hexdigest()
+    mark_state(config, f"deepisa_{track}", final_fingerprint, required, {"model": str(model_path), "model_sha256": sha256(model_path), "finemo_hits": str(scan_hits), "start_from": start_from})
     print(f"deepisa {track}: complete")
 
 
@@ -376,7 +452,7 @@ def parser() -> argparse.ArgumentParser:
     isa = sub.add_parser("deepisa", help="run/resume DeepISA after shared-atlas scanning")
     isa.add_argument("--track", required=True, choices=["deepisa_hk", "deepisa_dev", "deepisa_cage"])
     isa.add_argument("--isa-source", help="directory containing Ep_ISA_NEW/")
-    isa.add_argument("--start-from", choices=["preflight_audit", "single_isa", "combi_isa", "null_interaction", "aggregate_isa"], default="preflight_audit")
+    isa.add_argument("--start-from", choices=["auto", "preflight_audit", "single_isa", "combi_isa", "null_interaction", "aggregate_isa"], default="auto")
     return p
 
 
