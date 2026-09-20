@@ -4,6 +4,7 @@
   "data_root": "/content/drive/MyDrive/DeepEpromote/Drosophila",
   "output_root": "/content/drive/MyDrive/DeepEpromote/Drosophila/HK_DEV_SHARED_rerun_202609",
   "sources": {
+    "labeled_analysis_universe": "HK_DEV_SHARED_rerun_202609/input_snapshots/labeled_analysis_universe.tsv",
     "deepstarr_sequences": "DeepSTARR/deepstarr_data_annotated.tsv",
     "development_overlap": "DeepSTARR/overlap_annotation/deepstarr_overlap_development.tsv",
     "housekeeping_overlap": "DeepSTARR/overlap_annotation/deepstarr_overlap_housekeeping.tsv",
@@ -16,11 +17,17 @@
     "ep_isa_source": "DeepISA/Ep_ISA_NEW_src"
   },
   "cohort_contract": {
-    "definition": "unique 249-bp model-window ID present in both headerless Fig1 DEV and HK summit-overlap annotation tables",
+    "definition": "labelled union of HC7990 TSS-oriented high-confidence windows and unique 249-bp Fig1 DEV∩HK sharing windows",
+    "n_union": 23284,
+    "n_hc7990": 7990,
     "n_shared": 17380,
+    "n_hc7990_only": 5904,
+    "n_shared_only": 15294,
+    "n_hc7990_and_shared": 2086,
     "n_proximal_or_core": 12260,
     "n_distal": 5120,
-    "n_cage_observed_proximal_or_core": 4178,
+    "n_union_non_distal": 18164,
+    "n_cage_observed_union": 10082,
     "window_length_bp": 249,
     "proximal_labels": ["core_promoter", "proximal_promoter"]
   },

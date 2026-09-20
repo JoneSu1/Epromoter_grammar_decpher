@@ -26,10 +26,10 @@ OVERLAP_COLUMNS = [
     "summit_end", "region_annotation", "score", "strand",
 ]
 TRACKS = {
-    "s3_hk": {"scope": "all", "sequence": "deepstarr", "dictionary": "standalone_hk_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement"},
-    "s3_dev": {"scope": "all", "sequence": "deepstarr", "dictionary": "standalone_dev_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement"},
-    "deepisa_hk": {"scope": "proximal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite"},
-    "deepisa_dev": {"scope": "proximal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite"},
+    "s3_hk": {"scope": "union", "sequence": "deepstarr", "dictionary": "standalone_hk_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement; retain labels then select sharing rows downstream"},
+    "s3_dev": {"scope": "union", "sequence": "deepstarr", "dictionary": "standalone_dev_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement; retain labels then select sharing rows downstream"},
+    "deepisa_hk": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
+    "deepisa_dev": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
     "deepisa_cage": {"scope": "cage", "sequence": "cage", "dictionary": "shared_24bp_motifs", "model": "deepcage_model", "purpose": "DeepISA prerequisite; observed CAGE only"},
 }
 
@@ -72,6 +72,15 @@ def output_path(config: dict) -> Path:
     return Path(config["output_root"])
 
 
+def require_explicit_local_output(config: dict) -> None:
+    """Avoid treating the Colab default `/content/drive` as a Windows path."""
+    if os.name == "nt" and str(config["output_root"]).startswith("/content/drive/"):
+        raise ValueError(
+            "This is a local Windows run with the Colab output default. "
+            "Pass --output-root 'G:\\我的云端硬盘\\DeepEpromote\\Drosophila\\HK_DEV_SHARED_rerun_202609'."
+        )
+
+
 def config_fingerprint(config: dict) -> str:
     public = {k: v for k, v in config.items() if not k.startswith("_")}
     return hashlib.sha256(json.dumps(public, sort_keys=True).encode()).hexdigest()
@@ -93,17 +102,21 @@ def require_sources(config: dict, keys: list[str]) -> dict[str, Path]:
 
 
 def build_cohort(config: dict) -> tuple[pd.DataFrame, dict]:
-    paths = require_sources(config, ["development_overlap", "housekeeping_overlap", "deepstarr_sequences", "cage_oriented_observed"])
+    paths = require_sources(config, ["labeled_analysis_universe", "development_overlap", "housekeeping_overlap", "deepstarr_sequences", "cage_oriented_observed"])
     dev = pd.read_csv(paths["development_overlap"], sep="\t", header=None, names=OVERLAP_COLUMNS, dtype={"ID": str})
     hk = pd.read_csv(paths["housekeeping_overlap"], sep="\t", header=None, names=OVERLAP_COLUMNS, dtype={"ID": str})
-    shared = sorted(set(dev["ID"]) & set(hk["ID"]))
-    labels = config["cohort_contract"]["proximal_labels"]
-    annotation = pd.concat([
-        dev.loc[dev["ID"].isin(shared), ["ID", "region_annotation"]],
-        hk.loc[hk["ID"].isin(shared), ["ID", "region_annotation"]],
-    ])
-    proximal = set(annotation.loc[annotation["region_annotation"].isin(labels), "ID"])
-    dev_label = annotation.groupby("ID")["region_annotation"].apply(lambda x: ";".join(sorted(set(map(str, x))))).rename("all_region_annotations")
+    shared = set(dev["ID"]) & set(hk["ID"])
+    labelled = pd.read_csv(paths["labeled_analysis_universe"], sep="\t", dtype=str)
+    required_columns = {"canonical_id", "combined_label", "in_HC7990_TSSORIENTED", "in_HK_DEV_SHARED", "fig1_promoter_group", "cage_status"}
+    if not required_columns.issubset(labelled.columns):
+        raise ValueError(f"Labelled universe is missing: {sorted(required_columns - set(labelled.columns))}")
+    if labelled.canonical_id.duplicated().any():
+        raise RuntimeError("Labelled universe contains duplicate canonical IDs")
+    labelled = labelled.copy()
+    labelled["in_HC7990_TSSORIENTED"] = labelled.in_HC7990_TSSORIENTED.eq("True")
+    labelled["in_HK_DEV_SHARED"] = labelled.in_HK_DEV_SHARED.eq("True")
+    if set(labelled.loc[labelled.in_HK_DEV_SHARED, "canonical_id"]) != shared:
+        raise RuntimeError("Labelled HK_DEV_SHARED membership differs from the two Fig1 overlap source tables")
     seq = pd.read_csv(paths["deepstarr_sequences"], sep="\t", dtype={"ID": str})
     if not {"ID", "Sequence"}.issubset(seq.columns):
         raise ValueError("DeepSTARR table must contain ID and Sequence columns")
@@ -113,33 +126,34 @@ def build_cohort(config: dict) -> tuple[pd.DataFrame, dict]:
         raise ValueError("Oriented CAGE table must contain ID and seq columns")
     cage = cage.drop_duplicates("ID").set_index("ID")["seq"]
     rows = []
-    for identifier in shared:
+    for record in labelled.sort_values("canonical_id").to_dict("records"):
+        identifier = record["canonical_id"]
         chrom, start, end = coordinates(identifier)
         deepstarr_sequence = str(seq.get(identifier, "")).upper()
         cage_sequence = str(cage.get(identifier, "")).upper()
-        rows.append({
+        rows.append({**record,
             "canonical_id": identifier, "chrom": chrom, "start": start, "end": end,
             "coordinate": f"{chrom}:{start}-{end}",
-            "fig1_promoter_group": "proximal_promoter" if identifier in proximal else "distal_promoter",
-            "all_region_annotations": dev_label.get(identifier, ""),
             "deepstarr_sequence": deepstarr_sequence,
-            "cage_sequence": cage_sequence if identifier in proximal else "",
-            "cage_observed": identifier in proximal and bool(cage_sequence),
+            "cage_sequence": cage_sequence if record["cage_status"] == "READY" else "",
+            "non_distal": record["cage_status"] != "EXCLUDED_DISTAL_FOR_CAGE",
+            "cage_observed": record["cage_status"] == "READY" and bool(cage_sequence),
         })
     cohort = pd.DataFrame(rows)
     expected = config["cohort_contract"]
     counts = {
-        "shared": len(cohort),
+        "union": len(cohort),
+        "hc7990": int(cohort.in_HC7990_TSSORIENTED.sum()),
+        "shared": int(cohort.in_HK_DEV_SHARED.sum()),
+        "hc7990_only": int((cohort.combined_label == "HC7990_ONLY").sum()),
+        "shared_only": int((cohort.combined_label == "HK_DEV_SHARED_ONLY").sum()),
+        "hc7990_and_shared": int((cohort.combined_label == "HC7990_AND_HK_DEV_SHARED").sum()),
         "proximal_or_core": int((cohort.fig1_promoter_group == "proximal_promoter").sum()),
         "distal": int((cohort.fig1_promoter_group == "distal_promoter").sum()),
-        "cage_observed_proximal_or_core": int(cohort.cage_observed.sum()),
+        "union_non_distal": int(cohort.non_distal.sum()),
+        "cage_observed_union": int(cohort.cage_observed.sum()),
     }
-    required = {
-        "shared": expected["n_shared"],
-        "proximal_or_core": expected["n_proximal_or_core"],
-        "distal": expected["n_distal"],
-        "cage_observed_proximal_or_core": expected["n_cage_observed_proximal_or_core"],
-    }
+    required = {key: expected[f"n_{key}"] for key in counts}
     if counts != required:
         raise RuntimeError(f"Cohort count contract failed: got {counts}; expected {required}")
     if not cohort.deepstarr_sequence.map(len).eq(expected["window_length_bp"]).all():
@@ -152,10 +166,10 @@ def build_cohort(config: dict) -> tuple[pd.DataFrame, dict]:
 
 def track_frame(cohort: pd.DataFrame, track: str) -> pd.DataFrame:
     spec = TRACKS[track]
-    if spec["scope"] == "all":
+    if spec["scope"] == "union":
         selected = cohort.copy()
-    elif spec["scope"] == "proximal":
-        selected = cohort.loc[cohort.fig1_promoter_group == "proximal_promoter"].copy()
+    elif spec["scope"] == "non_distal":
+        selected = cohort.loc[cohort.non_distal].copy()
     else:
         selected = cohort.loc[cohort.cage_observed].copy()
     sequence_col = f"{spec['sequence']}_sequence"
@@ -163,7 +177,7 @@ def track_frame(cohort: pd.DataFrame, track: str) -> pd.DataFrame:
     selected["track"] = track
     selected["dictionary_type"] = "shared_24bp" if spec["dictionary"] == "shared_24bp_motifs" else "task_specific_standalone"
     selected.insert(0, "peak_id", range(len(selected)))
-    return selected[["peak_id", "canonical_id", "chrom", "start", "end", "coordinate", "fig1_promoter_group", "cage_observed", "track", "dictionary_type", "sequence"]]
+    return selected[["peak_id", "canonical_id", "combined_label", "in_HC7990_TSSORIENTED", "in_HK_DEV_SHARED", "chrom", "start", "end", "coordinate", "fig1_promoter_group", "cage_status", "non_distal", "cage_observed", "track", "dictionary_type", "sequence"]]
 
 
 def state_path(config: dict, name: str) -> Path:
@@ -199,6 +213,7 @@ def command_inspect(config: dict) -> None:
 
 
 def command_prepare(config: dict, force: bool) -> None:
+    require_explicit_local_output(config)
     root = output_path(config)
     manifests = root / "manifests"
     cohort_file = manifests / "hk_dev_shared_cohort.tsv"
@@ -214,7 +229,7 @@ def command_prepare(config: dict, force: bool) -> None:
     fasta_root = root / "fasta"
     for name in TRACKS:
         frame = track_frame(cohort, name)
-        expected = {"s3_hk": 17380, "s3_dev": 17380, "deepisa_hk": 12260, "deepisa_dev": 12260, "deepisa_cage": 4178}[name]
+        expected = {"s3_hk": 23284, "s3_dev": 23284, "deepisa_hk": 18164, "deepisa_dev": 18164, "deepisa_cage": 10082}[name]
         if len(frame) != expected:
             raise RuntimeError(f"{name} has {len(frame)} windows, expected {expected}")
         frame.to_csv(manifests / f"{name}.tsv", sep="\t", index=False)
@@ -237,6 +252,7 @@ def manifest(config: dict, track: str) -> pd.DataFrame:
 
 
 def command_admit_attributions(config: dict, track: str, source: Path, force: bool) -> None:
+    require_explicit_local_output(config)
     if track not in TRACKS:
         raise ValueError(f"Unknown track {track}; choose from {', '.join(TRACKS)}")
     if not source.exists():
@@ -276,6 +292,7 @@ def command_admit_attributions(config: dict, track: str, source: Path, force: bo
 
 
 def command_scan(config: dict, track: str, force: bool) -> None:
+    require_explicit_local_output(config)
     if track not in TRACKS:
         raise ValueError(f"Unknown track {track}")
     npz_file = output_path(config) / "finemo_input" / track / "finemo_input.npz"
@@ -300,6 +317,7 @@ def command_scan(config: dict, track: str, force: bool) -> None:
 
 
 def command_deepisa(config: dict, track: str, isa_source: str | None, force: bool, start_from: str) -> None:
+    require_explicit_local_output(config)
     if track not in {"deepisa_hk", "deepisa_dev", "deepisa_cage"}:
         raise ValueError("DeepISA is defined only for deepisa_hk, deepisa_dev and deepisa_cage")
     scan_hits = output_path(config) / "finemo_scans" / track / "hits.tsv"

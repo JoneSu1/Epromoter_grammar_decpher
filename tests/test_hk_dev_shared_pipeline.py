@@ -19,8 +19,8 @@ def test_coordinate_parser_keeps_model_window_prefix():
 def test_track_contract_separates_s3_and_deepisa():
     cohort = pd.DataFrame(
         [
-            {"canonical_id": "chr2L_1_250_+_a", "chrom": "chr2L", "start": 1, "end": 250, "coordinate": "chr2L:1-250", "fig1_promoter_group": "proximal_promoter", "cage_observed": True, "deepstarr_sequence": "A" * 249, "cage_sequence": "C" * 249},
-            {"canonical_id": "chr2L_2_251_+_b", "chrom": "chr2L", "start": 2, "end": 251, "coordinate": "chr2L:2-251", "fig1_promoter_group": "distal_promoter", "cage_observed": False, "deepstarr_sequence": "G" * 249, "cage_sequence": ""},
+            {"canonical_id": "chr2L_1_250_+_a", "combined_label": "HC7990_ONLY", "in_HC7990_TSSORIENTED": True, "in_HK_DEV_SHARED": False, "chrom": "chr2L", "start": 1, "end": 250, "coordinate": "chr2L:1-250", "fig1_promoter_group": "proximal_promoter", "cage_status": "READY", "non_distal": True, "cage_observed": True, "deepstarr_sequence": "A" * 249, "cage_sequence": "C" * 249},
+            {"canonical_id": "chr2L_2_251_+_b", "combined_label": "HK_DEV_SHARED_ONLY", "in_HC7990_TSSORIENTED": False, "in_HK_DEV_SHARED": True, "chrom": "chr2L", "start": 2, "end": 251, "coordinate": "chr2L:2-251", "fig1_promoter_group": "distal_promoter", "cage_status": "EXCLUDED_DISTAL_FOR_CAGE", "non_distal": False, "cage_observed": False, "deepstarr_sequence": "G" * 249, "cage_sequence": ""},
         ]
     )
     assert len(pipeline.track_frame(cohort, "s3_hk")) == 2

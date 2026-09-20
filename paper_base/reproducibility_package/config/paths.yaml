@@ -1,0 +1,65 @@
+# Package-relative path configuration.
+#
+# Resolves the package's frozen inputs so packaged workflows do NOT depend on
+# historical absolute paths (F:\phd\..., /content/drive/...).
+#
+# Historical code retains its original path strings inside archived copies;
+# these entries describe how packaged inputs map to those historical locations.
+# Do NOT rewrite scientific code to fix paths — point it at these frozen copies.
+
+package_root: .
+
+# DeepISA canonical raw results — LOCALIZED (was G-drive ep_isa_new_rerun_results).
+# DeepISA scripts that hardcode G:\...\ep_isa_new_rerun_results should be pointed here.
+deepisa_raw_root: frozen_data/deepisa_raw
+deepisa_task_folders:
+  CAGE: results_cage_newisa
+  DEV:  results_dev_newisa
+  HK:   results_hk_newisa
+
+# Shared motif atlas (IC-trimmed 10 meta-clusters).
+motif_atlas_root: frozen_data/motif_atlas
+motif_atlas_files:
+  annotated: Final_Annotated_MetaClusters_IC_Trimmed.tsv
+  trimmed:   Meta_Clusters_IC_Trimmed.tsv
+  entities:  entities_trimmed.pkl
+  results:   results_complete.pkl
+
+# Evolution greedy run (reviewer_greedy_20260724_115905).
+evolution_greedy_root: 05_evolution/data
+evolution_summary: frozen_data/evolution_greedy/primary_greedy_summary.tsv
+evolution_selected_10: 05_evolution/data/attribution/legacy_selected_10_metadata.tsv
+
+# === Phase 3.5 LOCALIZED external assets (G-drive was mounted during hardening) ===
+
+# Evolution Fig5d attribution arrays — LOCALIZED (was LEVEL D, now LEVEL B1).
+# Script: 05_evolution/scripts/plot_fig5d_fig1e_style_full249.py L67-78 reads
+#   attribution/{HK,DEV,CAGE}/{attribution_arrays.npz,metadata.tsv}  +  summaries/finemo_hits_annotated_long.tsv (L92)
+# Point base.ANNOTATED_ATTR_DIR here instead of the G-drive path.
+evolution_fig5d_attribution_root: frozen_data/evolution_fig5d
+evolution_fig5d_attribution:
+  HK:   frozen_data/evolution_fig5d/attribution/HK
+  DEV:  frozen_data/evolution_fig5d/attribution/DEV
+  CAGE: frozen_data/evolution_fig5d/attribution/CAGE
+evolution_fig5d_finemo_hits_long: frozen_data/evolution_fig5d/summaries/finemo_hits_annotated_long.tsv
+
+# Sharing Motif Fig3e / figure3e_series2 logo inputs — PARTIALLY LOCALIZED.
+# finemo_input.npz + regions beds + prom_input_info.tsv: LOCAL (done).
+# attributions.h5 (~2.2GB): transfer in progress at hardening time — see note.
+# Script: 02_sharing_motif/scripts/fig3e_core_promoter_logos.py
+sharing_motif_logos_root: frozen_data/sharing_motif_logos
+sharing_motif_finemo_input:
+  HK:        frozen_data/sharing_motif_logos/finemo_input/HK/finemo_input.npz        # keys: sequences, contributions
+  DEV:       frozen_data/sharing_motif_logos/finemo_input/DEV/finemo_input.npz
+  CAGE_NEW:  frozen_data/sharing_motif_logos/finemo_input/CAGE_NEW/finemo_input.npz
+sharing_motif_hk_regions_bed: frozen_data/sharing_motif_logos/finemo_input/HK/regions.bed
+sharing_motif_prom_input_info: frozen_data/sharing_motif_logos/prom_input_info.tsv
+sharing_motif_subset_regions:
+  HK_only: frozen_data/sharing_motif_logos/subset_regions/HK_only/regions.bed
+  DEV_only: frozen_data/sharing_motif_logos/subset_regions/DEV_only/regions.bed
+  Shared:  frozen_data/sharing_motif_logos/subset_regions/Shared/regions.bed
+# attributions.h5 (large; transfer in progress during Phase 3.5) — if absent, still on G-drive:
+sharing_motif_attributions_h5:
+  HK:   frozen_data/sharing_motif_logos/attributions/HK/attributions.h5    # ~754MB
+  DEV:  frozen_data/sharing_motif_logos/attributions/DEV/attributions.h5   # ~756MB
+  CAGE: frozen_data/sharing_motif_logos/attributions/CAGE/attributions.h5  # ~729MB

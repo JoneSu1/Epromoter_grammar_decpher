@@ -1,36 +1,41 @@
-# HK_DEV_SHARED Colab quickstart
+# HK_DEV_SHARED Colab runner
 
-This is the rerun workflow for the sharing analysis.  It is an extension to
-the frozen paper figures, not a replacement for their released visual assets.
-GitHub contains only this complete analysis code, the parameter contract and
-small data-free tests.  The project tables, model H5 files, motif H5 files,
-attributions and all run output stay on Google Drive.  The notebook records
-the cohort definition, every source hash and every stage checkpoint under one
-run directory on Google Drive.
+This is the Drive-backed rerun workflow for the sharing analysis.  The Colab
+notebook is intentionally only a runner: it mounts Drive, clones the paper
+base, installs the declared environment and calls the base command. All cohort
+construction, validation, Fi-NeMo admission/scanning and DeepISA dispatch live
+once in `scripts/hk_dev_shared_pipeline.py`.
+
+GitHub contains the unified `paper_base/` source tree, rerun code, parameter
+contract and small data-free tests. The project tables, model H5 files, motif
+H5 files, attributions and all run output stay on Google Drive.
 
 ## Cohort contract
 
-`HK_DEV_SHARED` means the unique 249-bp DeepSTARR model-window `ID` present in
-both headerless Fig. 1 DEV and HK summit-overlap annotation tables.  It does
-not mean that the two summits occupy the identical coordinate, and it is not
-the 130-window Fig. 3 logo subset.
+The immutable Drive input is the labelled union of HC7990 TSS-oriented
+high-confidence windows and `HK_DEV_SHARED`. It contains 23,284 unique 249-bp
+model-window IDs with three mutually exclusive labels: HC7990-only 5,904,
+HK/DEV-shared-only 15,294, and both 2,086. `HK_DEV_SHARED` itself means the
+same unique 249-bp ID occurs in both headerless Fig. 1 DEV and HK
+summit-overlap tables; summit coordinates need not be identical. It is not the
+130-window Fig. 3 logo subset.
 
 | branch | windows | motif dictionary | purpose |
 | --- | ---: | --- | --- |
-| `s3_hk`, `s3_dev` | 17,380 each (12,260 proximal/core; 5,120 distal) | task-specific standalone HK or DEV | S3 proximal-versus-distal supplement |
-| `deepisa_hk`, `deepisa_dev` | 12,260 each | shared 24-bp motif atlas | DeepISA |
-| `deepisa_cage` | 4,178 observed proximal/core | shared 24-bp motif atlas | DeepISA |
+| `s3_hk`, `s3_dev` | 23,284 each | task-specific standalone HK or DEV | one labelled full-union scan; select sharing rows for the S3 proximal-versus-distal supplement |
+| `deepisa_hk`, `deepisa_dev` | 18,164 each | shared 24-bp motif atlas | all labelled non-distal windows |
+| `deepisa_cage` | 10,082 observed non-distal windows | shared 24-bp motif atlas | observed CAGE only |
 
 The 8,082 sharing proximal/core windows without an observed CAGE row are
-never turned into inferred CAGE input.  Fig. 3's shared-atlas logo subset is
-explicitly outside this workflow.
+retained in HK/DEV scans but never turned into inferred CAGE input. Fig. 3's
+shared-atlas logo subset is explicitly outside this workflow.
 
 ## Execution gates
 
 The notebook deliberately stops before each material stage.  Read the
-rendered `inspect` report, including source hashes, five cohort counts,
+rendered `inspect` report, including source hashes, union-label counts,
 sequence orientation and parameters, then change `CONFIRM` from `REVIEW` to
-`RUN` for that stage.  The fixed settings matching the main analysis are:
+`RUN` for that stage. The fixed settings matching the main analysis are:
 
 - Fi-NeMo: lambda `0.7`, `--max-steps 10000`.
 - Input is first verified as exact 249-bp sequences, then only the final base
@@ -74,7 +79,7 @@ From the repository root, this checks the cohort on the project drive without
 writing analysis outputs:
 
 ```powershell
-python scripts/hk_dev_shared_pipeline.py --config configs/hk_dev_shared_rerun_config.json --data-root 'G:\我的云端硬盘\DeepEpromote\Drosophila' inspect
+python scripts/hk_dev_shared_pipeline.py --config configs/hk_dev_shared_rerun_config.json --data-root 'G:\我的云端硬盘\DeepEpromote\Drosophila' --output-root 'G:\我的云端硬盘\DeepEpromote\Drosophila\HK_DEV_SHARED_rerun_202609' inspect
 ```
 
 The source paths can be overridden on Colab or locally without editing the

@@ -1,0 +1,50 @@
+# Inferred requirements for the Drosophila reproducibility package.
+#
+# These are derived by inspecting `import` statements across the packaged
+# canonical scripts (figure plotting + analysis). Versions are NOT invented;
+# where a version is listed it comes from the verified plotting environment
+# (F:\envs\nature-skills-py, Python 3.10.9) or from explicit pins in canonical
+# metadata. Unpinned = UNKNOWN_VERSION (install latest compatible).
+#
+# Dependency classification appears in environment_notes.md.
+
+# --- Core scientific stack (CONFIRMED — used by nearly every plotting script) ---
+numpy
+pandas
+scipy
+matplotlib
+seaborn
+
+# --- Bioinformatics / sequence (CONFIRMED) ---
+bioframe              # TSS-distance bridge in prepare_shared_motif_clean_data + Ep_ISA_Analysis
+logomaker             # motif logo rendering (Fig 1D logos, Fig 3a-2, Fig 3e, Fig 5d)
+h5py                  # modisco .h5, DeepCAGE attributions, model checkpoints
+
+# --- Statistics (CONFIRMED) ---
+statsmodels           # BH-FDR / multiple testing in contribution plots
+
+# --- Deep learning frameworks (CONFIRMED by usage; see notes on the dual-framework issue) ---
+# DeepISA Ep_ISA_NEW core library uses PyTorch:
+torch                 # CONFIRMED — Ep_ISA_NEW_src/modeling/{cnn,train,trainer}.py
+# DeepSTARR/DeepCAGE/Evolution model loading uses TensorFlow/Keras:
+tensorflow>=2.10      # CONFIRMED — build_model.ipynb, model load in evolution greedy nb
+tf_keras              # evolution reviewer_greedy nb uses tf_keras explicitly
+
+# --- DeepISA library (CONFIRMED — local package, NOT pip) ---
+# Ep_ISA_NEW is packaged under 04_deepisa/scripts/Ep_ISA_NEW_src/ — install via:
+#   pip install -e 04_deepisa/scripts/Ep_ISA_NEW_src/
+# (see environment_notes.md; pyproject.toml in that dir has a stale tensorflow dep — ignore, use torch)
+
+# --- Utilities (CONFIRMED) ---
+loguru                # Ep_ISA_NEW logging
+Pillow                # image handling (PIL)
+
+# --- Notebook runtime (needed to run .ipynb canonical analysis) ---
+jupyter
+ipykernel
+notebook
+
+# --- NOT required for figure reproduction (omitted) ---
+# modisco-lite, memelite, fi-nemo — only needed to RE-RUN upstream discovery/scan
+#   (these analyses are frozen; outputs are in frozen_data/)
+# google-cloud / google-colab — only needed for the original G-drive Colab runs

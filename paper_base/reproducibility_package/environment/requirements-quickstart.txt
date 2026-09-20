@@ -1,0 +1,15 @@
+# Minimal figure-rendering environment for quickstart/reproduce.py.
+# Exact pins were recorded from F:\envs\nature-skills-py on 2026-09-20 where
+# present. Remaining packages use explicit compatible ranges rather than
+# fabricated version claims.
+numpy==2.2.6
+pandas==2.3.3
+scipy>=1.13,<2
+matplotlib==3.10.9
+seaborn==0.13.2
+logomaker==0.8.7
+h5py==3.16.0
+Pillow==12.3.0
+statsmodels>=0.14,<0.15
+jupyterlab>=4,<5
+ipykernel>=6,<7
