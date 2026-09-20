@@ -38,7 +38,11 @@ def one_hot(sequences: pd.Series) -> np.ndarray:
         for pos, base in enumerate(sequence):
             index = "ACGT".find(base)
             if index < 0:
-                raise ValueError(f"Non-ACGT base in row {row}: {base!r}")
+                # Assembly-gap N keeps the greedy/CAGE-rerun convention of an
+                # all-zero row; any other letter stays a loud failure.
+                if base != "N":
+                    raise ValueError(f"Non-ACGTN base in row {row}: {base!r}")
+                continue
             table[row, pos, index] = 1.0
     return table
 

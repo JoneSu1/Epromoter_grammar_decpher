@@ -294,8 +294,12 @@ def command_admit_attributions(config: dict, track: str, source: Path, force: bo
         raise ValueError(f"{track}: expected N x 249 x 4 or N x 4 x 249 for N={len(frame)}; got {sequences.shape}")
     if sequences.shape[1] == 4:
         sequences, scores = np.transpose(sequences, (0, 2, 1)), np.transpose(scores, (0, 2, 1))
-    alphabet = np.array(list("ACGT"))
-    recovered = ["".join(alphabet[np.argmax(x, axis=1)]) for x in sequences]
+    # All-zero rows are the assembly-gap N convention shared with the
+    # attribution producer; recover them as N for the identity check.
+    alphabet = np.array(list("ACGTN"))
+    codes = sequences.argmax(axis=2)
+    codes[sequences.sum(axis=2) == 0] = 4
+    recovered = ["".join(alphabet[x]) for x in codes]
     if recovered != frame.sequence.tolist():
         raise RuntimeError("Attribution sequences do not exactly match the canonical staged manifest; refusing scan input")
     root = output_path(config) / "finemo_input" / track

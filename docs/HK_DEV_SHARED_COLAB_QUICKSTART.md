@@ -58,7 +58,9 @@ Do not replace this with a generic SHAP implementation: that would no longer
 match the main-analysis attribution convention.  `admit-attributions` checks
 the exact order and base identity against the newly generated canonical
 manifest before it permits Fi-NeMo to run.  A mismatch stops the run instead
-of silently scanning a partial or reordered cohort.
+of silently scanning a partial or reordered cohort.  Assembly-gap `N` bases
+(two union windows) keep the greedy/CAGE-rerun convention: an all-zero one-hot
+row on the producer side, recovered as `N` during the identity check.
 
 The canonical window ID is also carried as Fi-NeMo/DeepISA `region` and as the
 FASTA header. This preserves orientation-specific model windows; genomic
