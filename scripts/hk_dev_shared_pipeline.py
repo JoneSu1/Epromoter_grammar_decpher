@@ -86,6 +86,11 @@ def config_fingerprint(config: dict) -> str:
     return hashlib.sha256(json.dumps(public, sort_keys=True).encode()).hexdigest()
 
 
+def pipeline_fingerprint(config: dict) -> str:
+    """Fingerprint code as well as config, so a code fix cannot reuse stale state."""
+    return hashlib.sha256((config_fingerprint(config) + sha256(Path(__file__))).encode()).hexdigest()
+
+
 def coordinates(identifier: str) -> tuple[str, int, int]:
     pieces = identifier.split("_", 4)
     if len(pieces) < 4:
@@ -174,10 +179,14 @@ def track_frame(cohort: pd.DataFrame, track: str) -> pd.DataFrame:
         selected = cohort.loc[cohort.cage_observed].copy()
     sequence_col = f"{spec['sequence']}_sequence"
     selected["sequence"] = selected[sequence_col]
+    # DeepISA resolves sequences from the Fi-NeMo-derived `region` value.
+    # Canonical IDs are the FASTA headers and preserve strand/window identity;
+    # `chrom:start-end` would collapse distinct orientation-specific windows.
+    selected["region"] = selected["canonical_id"]
     selected["track"] = track
     selected["dictionary_type"] = "shared_24bp" if spec["dictionary"] == "shared_24bp_motifs" else "task_specific_standalone"
     selected.insert(0, "peak_id", range(len(selected)))
-    return selected[["peak_id", "canonical_id", "combined_label", "in_HC7990_TSSORIENTED", "in_HK_DEV_SHARED", "chrom", "start", "end", "coordinate", "fig1_promoter_group", "cage_status", "non_distal", "cage_observed", "track", "dictionary_type", "sequence"]]
+    return selected[["peak_id", "canonical_id", "region", "combined_label", "in_HC7990_TSSORIENTED", "in_HK_DEV_SHARED", "chrom", "start", "end", "coordinate", "fig1_promoter_group", "cage_status", "non_distal", "cage_observed", "track", "dictionary_type", "sequence"]]
 
 
 def state_path(config: dict, name: str) -> Path:
@@ -202,7 +211,7 @@ def mark_state(config: dict, name: str, fingerprint: str, outputs: list[Path], e
 def command_inspect(config: dict) -> None:
     cohort, audit = build_cohort(config)
     review = {
-        "generated_utc": utcnow(), "config_fingerprint": config_fingerprint(config),
+        "generated_utc": utcnow(), "config_fingerprint": config_fingerprint(config), "pipeline_sha256": sha256(Path(__file__)),
         "cohort_contract": config["cohort_contract"], "observed_counts": audit["counts"],
         "finemo": config["finemo"], "attribution_contract": config["attribution_contract"],
         "deepisa": config["deepisa"],
@@ -219,7 +228,7 @@ def command_prepare(config: dict, force: bool) -> None:
     cohort_file = manifests / "hk_dev_shared_cohort.tsv"
     track_files = [manifests / f"{name}.tsv" for name in TRACKS]
     cohort, audit = build_cohort(config)
-    fingerprint = hashlib.sha256((config_fingerprint(config) + json.dumps(audit, sort_keys=True)).encode()).hexdigest()
+    fingerprint = hashlib.sha256((pipeline_fingerprint(config) + json.dumps(audit, sort_keys=True)).encode()).hexdigest()
     outputs = [cohort_file, *track_files]
     if not force and state_is_current(config, "prepare", fingerprint, outputs):
         print("prepare: checkpoint valid; no files changed")
@@ -239,7 +248,7 @@ def command_prepare(config: dict, force: bool) -> None:
             for row in frame.itertuples(index=False):
                 handle.write(f">{row.canonical_id}\n{row.sequence}\n")
     review_file = root / "parameter_review.json"
-    atomic_json(review_file, {"config_fingerprint": config_fingerprint(config), "cohort_audit": audit, "tracks": {name: len(track_frame(cohort, name)) for name in TRACKS}, "finemo": config["finemo"], "attribution": config["attribution_contract"], "deepisa": config["deepisa"]})
+    atomic_json(review_file, {"config_fingerprint": config_fingerprint(config), "pipeline_sha256": sha256(Path(__file__)), "cohort_audit": audit, "tracks": {name: len(track_frame(cohort, name)) for name in TRACKS}, "finemo": config["finemo"], "attribution": config["attribution_contract"], "deepisa": config["deepisa"]})
     mark_state(config, "prepare", fingerprint, outputs, {"cohort_counts": audit["counts"], "parameter_review": str(review_file)})
     print(f"prepare: wrote five manifests below {manifests}")
 
@@ -274,7 +283,7 @@ def command_admit_attributions(config: dict, track: str, source: Path, force: bo
         raise RuntimeError("Attribution sequences do not exactly match the canonical staged manifest; refusing scan input")
     root = output_path(config) / "finemo_input" / track
     npz_file, bed_file = root / "finemo_input.npz", root / "regions.bed"
-    fingerprint = hashlib.sha256((config_fingerprint(config) + sha256(source) + sha256(output_path(config) / "manifests" / f"{track}.tsv")).encode()).hexdigest()
+    fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(source) + sha256(output_path(config) / "manifests" / f"{track}.tsv")).encode()).hexdigest()
     if not force and state_is_current(config, f"admit_{track}", fingerprint, [npz_file, bed_file]):
         print(f"admit-attributions {track}: checkpoint valid; no files changed")
         return
@@ -302,7 +311,7 @@ def command_scan(config: dict, track: str, force: bool) -> None:
     if not motif.exists():
         raise FileNotFoundError(motif)
     scan_dir, hits = output_path(config) / "finemo_scans" / track, output_path(config) / "finemo_scans" / track / "hits.tsv"
-    fingerprint = hashlib.sha256((config_fingerprint(config) + sha256(npz_file) + sha256(motif)).encode()).hexdigest()
+    fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(npz_file) + sha256(motif)).encode()).hexdigest()
     if not force and state_is_current(config, f"scan_{track}", fingerprint, [hits]):
         print(f"scan {track}: checkpoint valid; hits.tsv retained")
         return
@@ -331,7 +340,7 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
         raise FileNotFoundError(model_path)
     results = output_path(config) / "deepisa" / track
     required = [results / "Data" / "motif_combi_isa.csv", results / "Data" / "null_interaction.csv"]
-    fingerprint = hashlib.sha256((config_fingerprint(config) + sha256(scan_hits) + sha256(model_path)).encode()).hexdigest()
+    fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(scan_hits) + sha256(model_path)).encode()).hexdigest()
     if not force and state_is_current(config, f"deepisa_{track}", fingerprint, required):
         print(f"deepisa {track}: checkpoint valid; final tables retained")
         return

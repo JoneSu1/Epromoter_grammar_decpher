@@ -60,6 +60,10 @@ the exact order and base identity against the newly generated canonical
 manifest before it permits Fi-NeMo to run.  A mismatch stops the run instead
 of silently scanning a partial or reordered cohort.
 
+The canonical window ID is also carried as Fi-NeMo/DeepISA `region` and as the
+FASTA header. This preserves orientation-specific model windows; genomic
+`chrom:start-end` is metadata only and is never used as a sequence lookup key.
+
 ## Checkpoints and restart
 
 Every successful stage writes `state/<stage>.json`, containing its config and

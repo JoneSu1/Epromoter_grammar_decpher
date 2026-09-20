@@ -30,3 +30,4 @@ def test_track_contract_separates_s3_and_deepisa():
     cage = pipeline.track_frame(cohort, "deepisa_cage")
     assert len(cage) == 1
     assert cage.iloc[0].sequence == "C" * 249
+    assert cage.iloc[0].region == cage.iloc[0].canonical_id
