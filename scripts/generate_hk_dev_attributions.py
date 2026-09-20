@@ -48,8 +48,8 @@ def references(sequence: np.ndarray, n: int, dinuc_shuffle) -> tuple[np.ndarray,
 
 
 def load_model(config: dict, kind: str, head: str | None):
-    # The stored DeepSTARR JSON/H5 pair is a Keras-2 artifact.  Colab's
-    # Python-3.13 TensorFlow runtime needs this set before importing TF.
+    # The stored DeepSTARR JSON/H5 pair is a Keras-2 artifact; set this before
+    # importing TensorFlow so its legacy loader is selected.
     os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
     import tensorflow as tf
     from tf_keras.models import model_from_json
