@@ -42,9 +42,37 @@ def seed_from_onehot(sequence: np.ndarray) -> int:
     return int(hashlib.md5(sequence.tobytes()).hexdigest()[:8], 16)
 
 
-def references(sequence: np.ndarray, n: int, dinuc_shuffle) -> tuple[np.ndarray, np.ndarray]:
+def dinuc_shuffle(sequence: np.ndarray, rng: np.random.RandomState) -> np.ndarray:
+    """Deterministic one-hot shuffle preserving each adjacent-base count.
+
+    This is the Eulerian-trail dinucleotide shuffle used by the historical
+    DeepLIFT helper, kept locally so the validated CAGE/Evolution method can
+    run on Python 3.12 without installing the legacy ``deeplift`` package.
+    """
+    tokens = np.asarray(sequence.argmax(axis=1), dtype=np.int8)
+    if len(tokens) < 2:
+        return sequence.astype(np.float32, copy=True)
+    successors = [[] for _ in range(4)]
+    for left, right in zip(tokens[:-1], tokens[1:]):
+        successors[int(left)].append(int(right))
+    for values in successors:
+        if len(values) > 1:
+            mutable = values[:-1]
+            rng.shuffle(mutable)
+            values[:-1] = mutable
+    used = [0, 0, 0, 0]
+    output = np.empty_like(tokens)
+    output[0] = tokens[0]
+    for pos in range(len(tokens) - 1):
+        base = int(output[pos])
+        output[pos + 1] = successors[base][used[base]]
+        used[base] += 1
+    return np.eye(4, dtype=np.float32)[output]
+
+
+def references(sequence: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.RandomState(seed_from_onehot(sequence))
-    refs = np.asarray([dinuc_shuffle(sequence, rng=rng) for _ in range(n)], dtype=np.float32)
+    refs = np.asarray([dinuc_shuffle(sequence, rng) for _ in range(n)], dtype=np.float32)
     return refs, refs.mean(axis=0)
 
 
@@ -109,7 +137,6 @@ def main() -> None:
         raise RuntimeError(f"Existing {destination} does not match the canonical manifest; remove it only after review")
 
     import shap
-    from deeplift.dinuc_shuffle import dinuc_shuffle
     kind, head = TRACK_MODEL[args.track]
     model, output = load_model(config, kind, head)
     try:
@@ -120,7 +147,7 @@ def main() -> None:
     batch_size = int(config["attribution_contract"]["batch_size"])
 
     def background_callable(inputs):
-        refs, _ = references(inputs[0], n_backgrounds, dinuc_shuffle)
+        refs, _ = references(inputs[0], n_backgrounds)
         return [refs]
 
     explainer = shap.DeepExplainer((model.input, output), data=background_callable)
@@ -142,7 +169,7 @@ def main() -> None:
             phi = values[0] if isinstance(values, list) else values
             if phi.ndim == 4 and phi.shape[-1] == 1:
                 phi = phi[..., 0]
-            reference_means = np.asarray([references(row, n_backgrounds, dinuc_shuffle)[1] for row in batch], dtype=np.float32)
+            reference_means = np.asarray([references(row, n_backgrounds)[1] for row in batch], dtype=np.float32)
             multiplier = np.divide(phi, batch - reference_means, out=np.zeros_like(phi), where=np.abs(batch - reference_means) > 1e-6)
             hypothetical = (multiplier - np.sum(multiplier * reference_means, axis=2, keepdims=True)).astype(np.float32)
             handle["hyp_scores"][offset:end] = hypothetical
