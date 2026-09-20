@@ -17,6 +17,11 @@ import h5py
 import numpy as np
 import pandas as pd
 
+# The stored models are Keras-2 artifacts; this must be set before the first
+# TensorFlow import (``import shap`` can import TensorFlow eagerly, so the
+# variable cannot wait for load_model) so tf.keras resolves to tf_keras.
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+
 
 TRACK_MODEL = {
     "s3_hk": ("deepstarr", "Dense_Hk"),
@@ -77,9 +82,6 @@ def references(sequence: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_model(config: dict, kind: str, head: str | None):
-    # The stored DeepSTARR JSON/H5 pair is a Keras-2 artifact; set this before
-    # importing TensorFlow so its legacy loader is selected.
-    os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
     import tensorflow as tf
     from tf_keras.models import model_from_json
 
