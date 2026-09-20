@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import h5py
@@ -57,14 +58,28 @@ def load_model(config: dict, kind: str, head: str | None):
     root = Path(config["data_root"])
     if kind == "deepcage":
         model_path = root / config["sources"]["deepcage_model"]
-        model = tf.keras.models.load_model(model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()})
+        # Exact CAGE path used by the current 24-bp annotated Fi-NeMo workflow.
+        model = tf.keras.models.load_model(
+            model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()}, compile=False
+        )
         return model, model.output
     weights = root / config["sources"]["deepstarr_model"]
     architecture = weights.with_suffix(".json")
     if not architecture.exists():
         architecture = weights.parent / "DeepSTARR.model.json"
-    model = model_from_json(architecture.read_text(encoding="utf-8"))
-    model.load_weights(weights)
+    source_model = model_from_json(architecture.read_text(encoding="utf-8"))
+    source_model.load_weights(weights)
+    # Match the reviewed Shared_motif / 24-bp Fi-NeMo path: deserialize the
+    # legacy artifact with tf_keras, then re-load it as a tf.keras model for
+    # SHAP DeepExplainer.
+    with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as handle:
+        converted = Path(handle.name)
+    try:
+        source_model.save(converted)
+        model = tf.keras.models.load_model(converted, compile=False)
+    finally:
+        if converted.exists():
+            converted.unlink()
     return model, model.get_layer(head).output
 
 
