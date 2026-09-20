@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ipynb_checkpoints/
+notebooks/run_hk_dev_shared_rerun_colab.ipynb
 *.egg-info/
 dist/
 build/

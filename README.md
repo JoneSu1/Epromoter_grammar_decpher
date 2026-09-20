@@ -43,9 +43,9 @@ small, inspectable starting point—not a separate, diverging workflow.
 
 [`paper_base/`](paper_base/README.md) is the source-only unified base for all
 paper analyses, including the full original model, sharing, motif, DeepISA and
-evolution scripts.  `notebooks/run_hk_dev_shared_rerun_colab.ipynb` is only a
-thin Colab runner: it mounts Drive, clones this repository, and calls the
-versioned rerun command. It contains no duplicate analysis implementation.
+evolution scripts. The Drive-only Colab runner mounts Drive, clones this
+repository, and calls the versioned rerun command; it contains no duplicate
+analysis implementation and is intentionally not published in GitHub.
 The command builds one labelled 23,284-window HC7990 + HK/DEV-sharing universe
 and resumes its five scans/DeepISA branches from hash-checked checkpoints.
 See [the Colab runner contract](docs/HK_DEV_SHARED_COLAB_QUICKSTART.md).
