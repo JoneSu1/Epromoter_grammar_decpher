@@ -39,6 +39,20 @@ jupyter lab notebooks/quickstart_figure5.ipynb
 The notebook runs the same registered Figure 5 command as the CLI. It is a
 small, inspectable starting point—not a separate, diverging workflow.
 
+### HK_DEV_SHARED rerun quickstart
+
+`notebooks/quickstart_hk_dev_shared_finemo_deepisa.ipynb` is the Colab
+workflow for the post-freeze sharing extension: it reconstructs the Fig. 1
+DEV∩HK 249-bp cohort, verifies the required counts and parameters before each
+stage, and resumes Fi-NeMo/DeepISA from hash-checked checkpoints. Its scope is
+separate from the frozen figure reproduction: S3 scans standalone HK/DEV
+motifs across 17,380 sharing windows, while DeepISA uses the shared 24-bp
+atlas only on the proximal/core cohort (12,260 HK/DEV; 4,178 observed CAGE).
+See [the Colab contract](docs/HK_DEV_SHARED_COLAB_QUICKSTART.md).
+All actual data, model and motif H5 files, attributions and outputs remain on
+the project Google Drive; this repository contains only the complete scripts,
+configuration and minimal data-free tests.
+
 ### Developer
 
 ```bash
