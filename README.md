@@ -66,8 +66,8 @@ publication it defaults to the repository's `release_assets/` directory.
 `assets-verify` additionally checks every final visual export and editable
 source against the frozen SHA-256 inventory.
 
-The GitHub Actions workflow tests the installable package on Python 3.10 and
-3.12 without downloading multi-gigabyte assets. Full figure and visual-asset
+The GitHub Actions workflow tests the installable package on Python 3.10,
+3.12 and 3.13 without downloading multi-gigabyte assets. Full figure and visual-asset
 verification runs after mounting the DOI/release archive.
 
 ## Reproduction scope

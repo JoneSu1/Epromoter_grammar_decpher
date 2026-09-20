@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -388,10 +389,34 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
     results = output_path(config) / "deepisa" / track
     base_fingerprint = hashlib.sha256((pipeline_fingerprint(config) + sha256(scan_hits) + sha256(model_path)).encode()).hexdigest()
     sys.path.insert(0, str(source))
+    # Same validated CAGE/Evolution loader as generate_hk_dev_attributions.py.
+    # The DeepSTARR H5 is a weights-only Keras-2 artifact, so deserialize its
+    # JSON with tf_keras and convert through H5 to tf.keras; the CAGE model is
+    # a full legacy save and loads directly.
+    os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
     import tensorflow as tf
+    from tf_keras.models import model_from_json
+
     from Ep_ISA_NEW.quickstart import EpQuickStart
     frame = manifest(config, track)
-    model = tf.keras.models.load_model(model_path)
+    if TRACKS[track]["model"] == "deepcage_model":
+        model = tf.keras.models.load_model(
+            model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()}, compile=False
+        )
+    else:
+        architecture = model_path.with_suffix(".json")
+        if not architecture.exists():
+            architecture = model_path.parent / "DeepSTARR.model.json"
+        source_model = model_from_json(architecture.read_text(encoding="utf-8"))
+        source_model.load_weights(model_path)
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as handle:
+            converted = Path(handle.name)
+        try:
+            source_model.save(converted)
+            model = tf.keras.models.load_model(converted, compile=False)
+        finally:
+            if converted.exists():
+                converted.unlink()
     runner = EpQuickStart(str(results), str(output_path(config) / "fasta" / f"{track}.fa"), frame)
     runner.define_model(model)
     runner.load_finemo(str(scan_hits), finemo_h5_path=str(source_path(config, "shared_24bp_motifs")))
