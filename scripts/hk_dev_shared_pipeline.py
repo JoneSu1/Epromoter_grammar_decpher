@@ -441,6 +441,14 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
                 converted.unlink()
     runner = EpQuickStart(str(results), str(output_path(config) / "fasta" / f"{track}.fa"), isa_frame)
     runner.define_model(model)
+    # run_isa reads `tracks` from the dict it receives; DeepSTARR is a
+    # two-head model (track 0 = DEV, track 1 = HK), so the HK track must not
+    # reuse the shared default [0] or its ISA silently measures the DEV head.
+    # Set it on the runner too: _deepisa_stage_outputs resolves the per-track
+    # coop file names from runner.tracks before any run_isa call happens.
+    isa_config = dict(config["deepisa"])
+    isa_config["tracks"] = TRACKS[track].get("deepisa_tracks", isa_config.get("tracks", [0]))
+    runner.tracks = isa_config["tracks"]
     runner.load_finemo(str(scan_hits), finemo_h5_path=str(source_path(config, "shared_24bp_motifs")))
     stage_outputs = _deepisa_stage_outputs(runner)
     stages = list(stage_outputs)
@@ -470,11 +478,6 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
             sha256(Path(runner.files["null_isa"])),
         ]
 
-    # run_isa reads `tracks` from the dict it receives; DeepSTARR is a
-    # two-head model (track 0 = DEV, track 1 = HK), so the HK track must not
-    # reuse the shared default [0] or its ISA silently measures the DEV head.
-    isa_config = dict(config["deepisa"])
-    isa_config["tracks"] = TRACKS[track].get("deepisa_tracks", isa_config.get("tracks", [0]))
     for stage in requested:
         dependency_tokens = dependency_tokens_for(stage)
         stage_fingerprint = hashlib.sha256((base_fingerprint + stage + "".join(dependency_tokens)).encode()).hexdigest()
