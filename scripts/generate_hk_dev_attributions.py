@@ -93,11 +93,15 @@ def load_model(config: dict, kind: str, head: str | None):
     root = Path(config["data_root"])
     if kind == "deepcage":
         model_path = root / config["sources"]["deepcage_model"]
-        # Exact CAGE path used by the current 24-bp annotated Fi-NeMo workflow.
-        model = tf.keras.models.load_model(
-            model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()}, compile=False
+        # Exact CAGE path used by the reviewed greedy/24-bp Fi-NeMo rerun: the
+        # legacy H5 stores InputLayer configs with `batch_shape`, which the
+        # tf_keras loader rejects but Keras 3 reads fine, and unpinned
+        # shap (>=0.46) accepts Keras 3 models directly.
+        import keras
+        model = keras.models.load_model(
+            model_path, custom_objects={"mse": keras.losses.MeanSquaredError()}, compile=False
         )
-        return model, model.output
+        return model, None
     weights = root / config["sources"]["deepstarr_model"]
     architecture = weights.with_suffix(".json")
     if not architecture.exists():
@@ -169,7 +173,11 @@ def main() -> None:
         except OSError:
             return False
 
-    explainer = shap.DeepExplainer((model.input, output), data=background_callable)
+    explainer = (
+        shap.DeepExplainer(model, data=background_callable)  # Keras-3 CAGE, greedy-rerun form
+        if head is None
+        else shap.DeepExplainer((model.input, output), data=background_callable)
+    )
     if checkpoint.exists() and not checkpoint_is_valid(checkpoint):
         checkpoint.unlink()
     if not checkpoint.exists() and remote_checkpoint.exists() and checkpoint_is_valid(remote_checkpoint):

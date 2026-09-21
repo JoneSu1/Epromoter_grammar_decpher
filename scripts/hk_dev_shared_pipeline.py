@@ -404,8 +404,12 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
     from Ep_ISA_NEW.quickstart import EpQuickStart
     frame = manifest(config, track)
     if TRACKS[track]["model"] == "deepcage_model":
-        model = tf.keras.models.load_model(
-            model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()}, compile=False
+        # Same CAGE loader as generate_hk_dev_attributions.py: the legacy H5's
+        # InputLayer `batch_shape` config is rejected by tf_keras but read
+        # fine by Keras 3, which EpQuickStart consumes unchanged.
+        import keras
+        model = keras.models.load_model(
+            model_path, custom_objects={"mse": keras.losses.MeanSquaredError()}, compile=False
         )
     else:
         architecture = model_path.with_suffix(".json")
