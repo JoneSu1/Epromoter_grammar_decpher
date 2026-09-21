@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -133,7 +134,12 @@ def main() -> None:
     frame = pd.read_csv(manifest, sep="\t", dtype=str)
     x = one_hot(frame["sequence"].str.upper())
     destination = args.output_root / "reviewed_attributions" / f"{args.track}.npz"
-    checkpoint = args.output_root / "reviewed_attributions" / f"{args.track}.checkpoint.h5"
+    remote_checkpoint = args.output_root / "reviewed_attributions" / f"{args.track}.checkpoint.h5"
+    # Per-batch flushes go to local scratch; Drive only receives a periodic
+    # copy, so an unstable /content/drive FUSE mount cannot stall the compute
+    # loop (Errno 103 aborts were observed mid-write on Colab).
+    checkpoint = Path(tempfile.gettempdir()) / f"hk_dev_attr_{args.track}.checkpoint.h5"
+    sync_interval = 1000
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         with np.load(destination, allow_pickle=False) as done:
@@ -156,7 +162,18 @@ def main() -> None:
         refs, _ = references(inputs[0], n_backgrounds)
         return [refs]
 
+    def checkpoint_is_valid(path: Path) -> bool:
+        try:
+            with h5py.File(path, "r") as handle:
+                return np.array_equal(handle["sequences"][:], x)
+        except OSError:
+            return False
+
     explainer = shap.DeepExplainer((model.input, output), data=background_callable)
+    if checkpoint.exists() and not checkpoint_is_valid(checkpoint):
+        checkpoint.unlink()
+    if not checkpoint.exists() and remote_checkpoint.exists() and checkpoint_is_valid(remote_checkpoint):
+        shutil.copyfile(remote_checkpoint, checkpoint)
     if not checkpoint.exists():
         with h5py.File(checkpoint, "w") as handle:
             handle.create_dataset("sequences", data=x, compression="gzip")
@@ -181,7 +198,10 @@ def main() -> None:
             handle["hyp_scores"][offset:end] = hypothetical
             handle.attrs["processed_count"] = end
             handle.flush()
+            if end % sync_interval == 0:
+                shutil.copyfile(checkpoint, remote_checkpoint)
             print(f"{args.track}: {end}/{len(x)}")
+    shutil.copyfile(checkpoint, remote_checkpoint)
     with h5py.File(checkpoint, "r") as handle:
         np.savez_compressed(destination, sequences=handle["sequences"][:], hyp_scores=handle["hyp_scores"][:])
     print(f"{args.track}: published {destination}")
