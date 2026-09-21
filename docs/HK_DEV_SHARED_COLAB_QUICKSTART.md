@@ -44,6 +44,8 @@ sequence orientation and parameters, then change `CONFIRM` from `REVIEW` to
   batch size 20.
 - DeepISA: shared atlas only; null percentile 80, 8,192 single and pair null
   samples, receptive field 255.
+- DeepISA output head is per track: the two-head DeepSTARR model uses track 1
+  for `deepisa_hk` and track 0 for `deepisa_dev`; CAGE is track 0.
 
 ## Attribution admission
 

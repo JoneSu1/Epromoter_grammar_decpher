@@ -29,9 +29,9 @@ OVERLAP_COLUMNS = [
 TRACKS = {
     "s3_hk": {"scope": "union", "sequence": "deepstarr", "dictionary": "standalone_hk_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement; retain labels then select sharing rows downstream"},
     "s3_dev": {"scope": "union", "sequence": "deepstarr", "dictionary": "standalone_dev_motifs", "model": "deepstarr_model", "purpose": "S3 proximal-versus-distal supplement; retain labels then select sharing rows downstream"},
-    "deepisa_hk": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
-    "deepisa_dev": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
-    "deepisa_cage": {"scope": "cage", "sequence": "cage", "dictionary": "shared_24bp_motifs", "model": "deepcage_model", "purpose": "DeepISA prerequisite; observed CAGE only"},
+    "deepisa_hk": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "deepisa_tracks": [1], "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
+    "deepisa_dev": {"scope": "non_distal", "sequence": "deepstarr", "dictionary": "shared_24bp_motifs", "model": "deepstarr_model", "deepisa_tracks": [0], "purpose": "DeepISA prerequisite; all labelled non-distal windows"},
+    "deepisa_cage": {"scope": "cage", "sequence": "cage", "dictionary": "shared_24bp_motifs", "model": "deepcage_model", "deepisa_tracks": [0], "purpose": "DeepISA prerequisite; observed CAGE only"},
 }
 
 
@@ -470,6 +470,11 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
             sha256(Path(runner.files["null_isa"])),
         ]
 
+    # run_isa reads `tracks` from the dict it receives; DeepSTARR is a
+    # two-head model (track 0 = DEV, track 1 = HK), so the HK track must not
+    # reuse the shared default [0] or its ISA silently measures the DEV head.
+    isa_config = dict(config["deepisa"])
+    isa_config["tracks"] = TRACKS[track].get("deepisa_tracks", isa_config.get("tracks", [0]))
     for stage in requested:
         dependency_tokens = dependency_tokens_for(stage)
         stage_fingerprint = hashlib.sha256((base_fingerprint + stage + "".join(dependency_tokens)).encode()).hexdigest()
@@ -478,7 +483,7 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
             print(f"deepisa {track} {stage}: checkpoint valid; skipped")
             continue
         print(f"deepisa {track}: running {stage}")
-        runner.run_isa(config["deepisa"], start_from=stage, stop_after=stage)
+        runner.run_isa(isa_config, start_from=stage, stop_after=stage)
         if not all(path.exists() and path.stat().st_size > 0 for path in stage_outputs[stage]):
             raise RuntimeError(f"DeepISA stage {stage} did not produce its required outputs")
         mark_state(config, state_name, stage_fingerprint, stage_outputs[stage], {"model": str(model_path), "model_sha256": sha256(model_path), "finemo_hits": str(scan_hits)})
