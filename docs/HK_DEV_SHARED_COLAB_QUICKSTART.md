@@ -81,6 +81,10 @@ stage selection remains available for deliberate reruns. An incomplete
 Fi-NeMo directory is retained under `state/incomplete/finemo/` and retried in
 a fresh directory.
 
+## Runtime dependencies
+
+The Colab runner installs `shap tf-keras finemo h5py loguru bioframe pandas leidenalg igraph numba pysam` on the preinstalled runtime. `pysam` is required by bioframe's `load_fasta` inside the DeepISA single-ISA stage; without it the stage fails after the motif-location precompute with `ImportError: pysam is required`.
+
 ## Local dry-run
 
 From the repository root, this checks the cohort on the project drive without
