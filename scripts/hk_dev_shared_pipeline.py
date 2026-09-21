@@ -403,6 +403,20 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
 
     from Ep_ISA_NEW.quickstart import EpQuickStart
     frame = manifest(config, track)
+    # Ep_ISA_NEW resolves sequences through `chrom:start-end` region strings
+    # (region_str_to_seq splits on ':'), while this workflow's lookup key is
+    # the canonical window ID.  Present each window as its own chromosome of
+    # length 249: region "canonical_id:0-249" fetches the canonical-ID-keyed
+    # FASTA entry, motif coordinates stay window-relative (the ablation code
+    # slices fetched sequences by start_rel/end_rel), and distinct windows
+    # never collapse onto shared genomic coordinates.
+    isa_frame = pd.DataFrame({
+        "peak_id": frame["peak_id"],
+        "chrom": frame["canonical_id"].astype(str),
+        "start": 0,
+        "end": 249,
+        "region": frame["canonical_id"].astype(str) + ":0-249",
+    })
     if TRACKS[track]["model"] == "deepcage_model":
         # Same CAGE loader as generate_hk_dev_attributions.py: the legacy H5's
         # InputLayer `batch_shape` config is rejected by tf_keras but read
@@ -425,7 +439,7 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
         finally:
             if converted.exists():
                 converted.unlink()
-    runner = EpQuickStart(str(results), str(output_path(config) / "fasta" / f"{track}.fa"), frame)
+    runner = EpQuickStart(str(results), str(output_path(config) / "fasta" / f"{track}.fa"), isa_frame)
     runner.define_model(model)
     runner.load_finemo(str(scan_hits), finemo_h5_path=str(source_path(config, "shared_24bp_motifs")))
     stage_outputs = _deepisa_stage_outputs(runner)
