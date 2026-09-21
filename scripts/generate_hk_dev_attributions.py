@@ -186,6 +186,7 @@ def main() -> None:
         raise RuntimeError(f"Existing {destination} does not match the canonical manifest; remove it only after review")
 
     explainer = build_explainer(config, kind, head)
+    n_backgrounds = int(config["attribution_contract"]["dinucleotide_backgrounds"])
     batch_size = int(config["attribution_contract"]["batch_size"])
 
     def checkpoint_is_valid(path: Path) -> bool:
@@ -195,11 +196,6 @@ def main() -> None:
         except OSError:
             return False
 
-    explainer = (
-        shap.DeepExplainer(model, data=background_callable)  # Keras-3 CAGE, greedy-rerun form
-        if head is None
-        else shap.DeepExplainer((model.input, output), data=background_callable)
-    )
     if checkpoint.exists() and not checkpoint_is_valid(checkpoint):
         checkpoint.unlink()
     if not checkpoint.exists() and remote_checkpoint.exists() and checkpoint_is_valid(remote_checkpoint):
