@@ -18,11 +18,6 @@ import h5py
 import numpy as np
 import pandas as pd
 
-# The stored models are Keras-2 artifacts; this must be set before the first
-# TensorFlow import (``import shap`` can import TensorFlow eagerly, so the
-# variable cannot wait for load_model) so tf.keras resolves to tf_keras.
-os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
-
 
 TRACK_MODEL = {
     "s3_hk": ("deepstarr", "Dense_Hk"),
@@ -93,13 +88,12 @@ def load_model(config: dict, kind: str, head: str | None):
     root = Path(config["data_root"])
     if kind == "deepcage":
         model_path = root / config["sources"]["deepcage_model"]
-        # Exact CAGE path used by the reviewed greedy/24-bp Fi-NeMo rerun: the
-        # legacy H5 stores InputLayer configs with `batch_shape`, which the
-        # tf_keras loader rejects but Keras 3 reads fine, and unpinned
-        # shap (>=0.46) accepts Keras 3 models directly.
-        import keras
-        model = keras.models.load_model(
-            model_path, custom_objects={"mse": keras.losses.MeanSquaredError()}, compile=False
+        # Exact CAGE path of the reviewed greedy/24-bp Fi-NeMo rerun: run with
+        # TF_USE_LEGACY_KERAS=0 (enforced in main), so tf.keras is Keras 3,
+        # which reads the legacy InputLayer `batch_shape` config and passes
+        # shap's isinstance(model, tf.keras.Model) check.
+        model = tf.keras.models.load_model(
+            model_path, custom_objects={"mse": tf.keras.losses.MeanSquaredError()}, compile=False
         )
         return model, None
     weights = root / config["sources"]["deepstarr_model"]
@@ -130,6 +124,15 @@ def main() -> None:
     parser.add_argument("--track", required=True, choices=sorted(TRACK_MODEL))
     args = parser.parse_args()
 
+    # Per-track Keras binding, mirroring the two reviewed rerun paths exactly.
+    # shap's type check is isinstance(model, tf.keras.Model): the DeepSTARR
+    # tuple-form DeepExplainer ran under the legacy tf_keras binding, while
+    # the CAGE model-object form ran on Keras 3 (the legacy tf_keras H5
+    # loader also rejects this artifact's InputLayer `batch_shape`).  This
+    # must be fixed before `import shap`, which imports TensorFlow eagerly.
+    kind, head = TRACK_MODEL[args.track]
+    os.environ["TF_USE_LEGACY_KERAS"] = "0" if kind == "deepcage" else "1"
+
     config = json.loads(args.config.read_text(encoding="utf-8"))
     config["data_root"] = args.data_root
     manifest = args.output_root / "manifests" / f"{args.track}.tsv"
@@ -153,7 +156,6 @@ def main() -> None:
         raise RuntimeError(f"Existing {destination} does not match the canonical manifest; remove it only after review")
 
     import shap
-    kind, head = TRACK_MODEL[args.track]
     model, output = load_model(config, kind, head)
     try:
         shap.explainers._deep.deep_tf.op_handlers["AddV2"] = shap.explainers._deep.deep_tf.passthrough
