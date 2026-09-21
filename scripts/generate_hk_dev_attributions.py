@@ -116,12 +116,32 @@ def load_model(config: dict, kind: str, head: str | None):
     return model, model.get_layer(head).output
 
 
+def build_explainer(config: dict, kind: str, head: str | None):
+    import shap
+    model, output = load_model(config, kind, head)
+    try:
+        shap.explainers._deep.deep_tf.op_handlers["AddV2"] = shap.explainers._deep.deep_tf.passthrough
+    except AttributeError:
+        pass
+    n_backgrounds = int(config["attribution_contract"]["dinucleotide_backgrounds"])
+
+    def background_callable(inputs):
+        refs, _ = references(inputs[0], n_backgrounds)
+        return [refs]
+
+    if head is None:
+        return shap.DeepExplainer(model, data=background_callable)  # Keras-3 CAGE, greedy-rerun form
+    return shap.DeepExplainer((model.input, output), data=background_callable)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--track", required=True, choices=sorted(TRACK_MODEL))
+    parser.add_argument("--check", action="store_true",
+                        help="load the model, build the explainer and smoke-test two sequences; writes nothing")
     args = parser.parse_args()
 
     # Per-track Keras binding, mirroring the two reviewed rerun paths exactly.
@@ -139,7 +159,17 @@ def main() -> None:
     if not manifest.exists():
         raise FileNotFoundError(f"Missing {manifest}; run prepare first")
     frame = pd.read_csv(manifest, sep="\t", dtype=str)
+    if args.check:
+        frame = frame.iloc[:2]
     x = one_hot(frame["sequence"].str.upper())
+    if args.check:
+        explainer = build_explainer(config, kind, head)
+        values = explainer.shap_values(x, check_additivity=False)
+        phi = values[0] if isinstance(values, list) else values
+        if phi.ndim == 4 and phi.shape[-1] == 1:
+            phi = phi[..., 0]
+        print(f"{args.track}: CHECK OK; explainer built, shap_values(2 seqs) -> {phi.shape}")
+        return
     destination = args.output_root / "reviewed_attributions" / f"{args.track}.npz"
     remote_checkpoint = args.output_root / "reviewed_attributions" / f"{args.track}.checkpoint.h5"
     # Per-batch flushes go to local scratch; Drive only receives a periodic
@@ -155,18 +185,8 @@ def main() -> None:
                 return
         raise RuntimeError(f"Existing {destination} does not match the canonical manifest; remove it only after review")
 
-    import shap
-    model, output = load_model(config, kind, head)
-    try:
-        shap.explainers._deep.deep_tf.op_handlers["AddV2"] = shap.explainers._deep.deep_tf.passthrough
-    except AttributeError:
-        pass
-    n_backgrounds = int(config["attribution_contract"]["dinucleotide_backgrounds"])
+    explainer = build_explainer(config, kind, head)
     batch_size = int(config["attribution_contract"]["batch_size"])
-
-    def background_callable(inputs):
-        refs, _ = references(inputs[0], n_backgrounds)
-        return [refs]
 
     def checkpoint_is_valid(path: Path) -> bool:
         try:
