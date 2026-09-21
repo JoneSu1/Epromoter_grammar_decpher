@@ -11,8 +11,8 @@
     "cage_oriented_observed": "DeepCAGE/DATA/All_Core_Promoters_with_CAGE_Pred_and_Strand.tsv",
     "deepstarr_model": "DeepSTARR/model_artifacts/DeepSTARR.model.h5",
     "deepcage_model": "DeepCAGE/model/model_starr_ctss_T1/best_model.h5",
-    "standalone_hk_motifs": "DeepSTARR/Contribution_score/Hk_modisco_results.h5",
-    "standalone_dev_motifs": "DeepSTARR/Contribution_score/Dev_modisco_results.h5",
+    "standalone_hk_motifs": "DeepSTARR/promoter_mut/finemo_anno/Hk_modisco_results_for_finemo.h5",
+    "standalone_dev_motifs": "DeepSTARR/promoter_mut/finemo_anno/Dev_modisco_results_for_finemo.h5",
     "shared_24bp_motifs": "Motif_cluster/ic_trimmed_results/IC_Trimmed_MetaClusters_for_Finemo.h5",
     "ep_isa_source": "DeepISA/Ep_ISA_NEW_src"
   },
