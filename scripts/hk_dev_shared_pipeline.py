@@ -434,17 +434,30 @@ def command_deepisa(config: dict, track: str, isa_source: str | None, force: boo
         requested = stages
     else:
         requested = stages[stages.index(start_from):]
-    for stage in requested:
-        dependency_tokens = {
-            "preflight_audit": [sha256(scan_hits)],
-            "single_isa": [sha256(Path(runner.files["motif_locs"])), sha256(Path(runner.files["non_motif_locs"]))],
-            "combi_isa": [sha256(Path(runner.files["isa_single"])), sha256(Path(runner.files["null_isa"])), sha256(Path(runner.files["pred_orig"]))],
+    def dependency_tokens_for(stage: str) -> list[str]:
+        # Evaluated per stage: later stages hash files that only earlier
+        # stages produce, so their tokens must not be built on a fresh run
+        # while those files do not exist yet.
+        if stage == "preflight_audit":
+            return [sha256(scan_hits)]
+        if stage == "single_isa":
+            return [sha256(Path(runner.files["motif_locs"])), sha256(Path(runner.files["non_motif_locs"]))]
+        if stage == "combi_isa":
+            return [sha256(Path(runner.files["isa_single"])), sha256(Path(runner.files["null_isa"])), sha256(Path(runner.files["pred_orig"]))]
+        if stage == "null_interaction":
             # aggregate_isa intentionally rewrites combi/null tables in place.
             # Use upstream checkpoint identities, not their pre-aggregation
             # byte hashes, and validate the final output hashes separately.
-            "null_interaction": [completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"), sha256(Path(runner.files["pred_orig"]))],
-            "aggregate_isa": [completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"), completed_state_fingerprint(config, f"deepisa_{track}_null_interaction"), sha256(Path(runner.files["isa_single"])), sha256(Path(runner.files["null_isa"]))],
-        }[stage]
+            return [completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"), sha256(Path(runner.files["pred_orig"]))]
+        return [
+            completed_state_fingerprint(config, f"deepisa_{track}_combi_isa"),
+            completed_state_fingerprint(config, f"deepisa_{track}_null_interaction"),
+            sha256(Path(runner.files["isa_single"])),
+            sha256(Path(runner.files["null_isa"])),
+        ]
+
+    for stage in requested:
+        dependency_tokens = dependency_tokens_for(stage)
         stage_fingerprint = hashlib.sha256((base_fingerprint + stage + "".join(dependency_tokens)).encode()).hexdigest()
         state_name = f"deepisa_{track}_{stage}"
         if not force and state_is_current(config, state_name, stage_fingerprint, stage_outputs[stage]):
